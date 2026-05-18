@@ -1,0 +1,194 @@
+tables:
+
+  - name: drugs
+    role: dim
+    description: 药品信息维度表，记录每一种药品的详细信息，包含通用名、商品名、批准文号、规格、剂型、生产厂家、治疗领域等核心属性。
+    columns:
+
+      - name: drug_id
+        role: primary_key
+        description: 药品唯一标识。
+        alias: [药品ID, 药品编号]
+        sync: false
+
+      - name: generic_name
+        role: dimension
+        description: 药品通用名称，如阿莫西林胶囊。
+        alias: [通用名, 药品名称, 药品通用名]
+        sync: true
+
+      - name: brand_name
+        role: dimension
+        description: 药品商品名或品牌名，如阿莫仙、芬必得。
+        alias: [商品名, 品牌名, 品牌]
+        sync: true
+
+      - name: approval_number
+        role: dimension
+        description: 药品批准文号，如国药准字H20051234。
+        alias: [批准文号, 国药准字, 批号]
+        sync: false
+
+      - name: specifications
+        role: dimension
+        description: 药品规格，如0.25g*24粒。
+        alias: [规格, 包装规格, 剂型规格]
+        sync: false
+
+      - name: dosage_form
+        role: dimension
+        description: 药品剂型，如胶囊剂、片剂、注射剂、散剂。
+        alias: [剂型, 药品剂型, 给药形式]
+        sync: true
+
+      - name: manufacturer
+        role: dimension
+        description: 生产厂家名称。
+        alias: [生产厂家, 制造商, 生产企业]
+        sync: true
+
+      - name: therapeutic_area
+        role: dimension
+        description: 治疗领域或药物分类，如抗生素、解热镇痛、心血管、糖尿病。
+        alias: [治疗领域, 药物分类, 治疗类别, 适应症领域]
+        sync: true
+
+      - name: description
+        role: dimension
+        description: 药品详细描述及适应症说明。
+        alias: [药品描述, 适应症, 功能说明]
+        sync: false
+
+  - name: inventory
+    role: fact
+    description: 药品库存事实表，记录各批次药品的库存量、生产日期、有效期及仓库位置信息。
+    columns:
+
+      - name: inventory_id
+        role: primary_key
+        description: 库存记录唯一标识。
+        alias: [库存ID, 库存编号]
+        sync: false
+
+      - name: drug_id
+        role: foreign_key
+        description: 关联药品信息表的外键。
+        alias: [药品ID, 药品编号]
+        sync: false
+
+      - name: batch_number
+        role: dimension
+        description: 生产批号，医药库存核心追踪字段。
+        alias: [批号, 生产批号, 批次号]
+        sync: true
+
+      - name: quantity_on_hand
+        role: measure
+        description: 当前库存数量（盒/瓶）。
+        alias: [库存量, 库存数量, 现有库存, 在库数量]
+        sync: false
+
+      - name: warehouse_location
+        role: dimension
+        description: 仓库存储位置，如A区-01架。
+        alias: [仓库位置, 库位, 存储位置, 所在仓库]
+        sync: true
+
+      - name: production_date
+        role: dimension
+        description: 药品生产日期。
+        alias: [生产日期, 制造日期]
+        sync: false
+
+      - name: expiry_date
+        role: dimension
+        description: 药品有效期至，用于效期预警。
+        alias: [有效期, 有效期至, 过期日期]
+        sync: false
+
+  - name: sales_records
+    role: fact
+    description: 药品销售事实表，记录每一笔销售记录，包含销售日期、数量、单价、总额、客户、区域等核心销售指标。
+    columns:
+
+      - name: sale_id
+        role: primary_key
+        description: 销售记录唯一标识。
+        alias: [销售ID, 销售编号]
+        sync: false
+
+      - name: drug_id
+        role: foreign_key
+        description: 关联药品信息表的外键。
+        alias: [药品ID, 药品编号]
+        sync: false
+
+      - name: sale_date
+        role: dimension
+        description: 销售发生日期。
+        alias: [销售日期, 售卖日期, 出货日期, 下单日期]
+        sync: false
+
+      - name: quantity_sold
+        role: measure
+        description: 销售数量（盒/瓶）。
+        alias: [销量, 销售数量, 售卖数量, 售出件数]
+        sync: false
+
+      - name: unit_price
+        role: measure
+        description: 销售单价。
+        alias: [单价, 销售单价, 售价]
+        sync: false
+
+      - name: total_amount
+        role: measure
+        description: 销售总额。
+        alias: [销售额, 销售总额, 成交金额, 收入]
+        sync: false
+
+      - name: customer_name
+        role: dimension
+        description: 客户名称，如医院、药店名称。
+        alias: [客户, 客户名称, 购买方, 买方]
+        sync: true
+
+      - name: region
+        role: dimension
+        description: 销售区域，如华北区、华东区。
+        alias: [销售区域, 区域, 地区, 大区]
+        sync: true
+
+      - name: sales_rep
+        role: dimension
+        description: 销售代表姓名或部门。
+        alias: [销售代表, 销售员, 销售部门]
+        sync: true
+
+metrics:
+
+  - name: 销售总额
+    description: 所有药品销售记录的成交金额总和。
+    relevant_columns:
+      - sales_records.total_amount
+    alias: [GMV, 成交总额, 销售额, 总销售额]
+
+  - name: 销售总量
+    description: 所有药品销售记录的销售数量总和。
+    relevant_columns:
+      - sales_records.quantity_sold
+    alias: [销售总量, 总销量, 总售出件数]
+
+  - name: 库存总量
+    description: 所有药品在所有批次的当前库存数量之和。
+    relevant_columns:
+      - inventory.quantity_on_hand
+    alias: [库存总量, 总库存, 在库总量]
+
+  - name: 平均单价
+    description: 所有销售记录的平均销售单价。
+    relevant_columns:
+      - sales_records.unit_price
+      - sales_records.total_amount
+      - sales_records.quantity_sold
+    alias: [AOV, 平均售价, 均价]

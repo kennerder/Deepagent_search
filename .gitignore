@@ -1,0 +1,58 @@
+# 环境变量 (含 API Key)
+.env
+
+# 课程文档 (不公开)
+深度搜索项目文档.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# 前端构建产物 + 依赖
+node_modules/
+ui/dist/
+
+# 模型文件 (体积大)
+models/
+*.pth
+*.bin
+*.safetensors
+
+# 日志
+logs/
+*.log
+
+# 运行时输出
+output/
+updated/
+
+# 数据目录
+data/documents/
+data/processed_files.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 标注数据 (含自有业务标注)
+router/data/annotations.json
+
+# 评测数据 (含自有业务测试集和结果)
+data/testset.json
+data/testset_quick.json
+data/sql_testset.json
+data/*_eval_report.json
+data/eval_summary.json

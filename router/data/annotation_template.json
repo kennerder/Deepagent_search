@@ -1,0 +1,122 @@
+[
+  {
+    "query": "布洛芬缓释胶囊的库存还有多少",
+    "labels": ["db_query"]
+  },
+  {
+    "query": "查询连花清瘟胶囊在各区域的销售额",
+    "labels": ["db_query"]
+  },
+  {
+    "query": "阿莫西林的销售总量统计",
+    "labels": ["db_query"]
+  },
+  {
+    "query": "查询所有药品的库存信息",
+    "labels": ["db_query"]
+  },
+  {
+    "query": "华北区销售额最高的药品是哪个",
+    "labels": ["db_query"]
+  },
+  {
+    "query": "各治疗领域的药品销量排行",
+    "labels": ["db_query"]
+  },
+  {
+    "query": "最近有什么医药行业的新政策",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "2025年国家医保目录有哪些变化",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "搜索一下布洛芬的市场竞争格局",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "最新的药品审批政策是什么",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "查询最近的医药行业新闻",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "抗生素市场的趋势分析",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "公司内部考勤制度是怎样的",
+    "labels": ["kb_search"]
+  },
+  {
+    "query": "查阅药品质量管理规范文件",
+    "labels": ["kb_search"]
+  },
+  {
+    "query": "员工手册中关于请假的规定",
+    "labels": ["kb_search"]
+  },
+  {
+    "query": "公司的安全生产操作流程",
+    "labels": ["kb_search"]
+  },
+  {
+    "query": "查看企业内部的合规审查制度",
+    "labels": ["kb_search"]
+  },
+  {
+    "query": "药品召回流程文档",
+    "labels": ["kb_search"]
+  },
+  {
+    "query": "你好，我想了解一些信息",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "帮我查一下",
+    "labels": ["web_search"]
+  },
+  {
+    "query": "查询布洛芬库存，并搜索最新的布洛芬市场价格",
+    "labels": ["db_query", "web_search"]
+  },
+  {
+    "query": "连花清瘟的销售数据，以及网上关于连花清瘟的最新研究",
+    "labels": ["db_query", "web_search"]
+  },
+  {
+    "query": "阿莫西林库存情况，查阅内部抗生素使用规范",
+    "labels": ["db_query", "kb_search"]
+  },
+  {
+    "query": "查询奥司他韦在各区域的销售情况，搜索最新流感治疗方案",
+    "labels": ["db_query", "web_search"]
+  },
+  {
+    "query": "查看药品召回流程，并查询即将过期的药品库存",
+    "labels": ["kb_search", "db_query"]
+  },
+  {
+    "query": "搜索2025年医药政策变化，查阅内部合规审查制度",
+    "labels": ["web_search", "kb_search"]
+  },
+  {
+    "query": "搜索最新医保目录，查询我们公司相关药品的库存和销售数据",
+    "labels": ["web_search", "db_query"]
+  },
+  {
+    "query": "查看内部质量管理规范，搜索行业最新的GMP标准",
+    "labels": ["kb_search", "web_search"]
+  },
+  {
+    "query": "阿司匹林肠溶片的市场竞争分析，我们的库存和销售情况，内部市场策略文档",
+    "labels": ["web_search", "db_query", "kb_search"]
+  },
+  {
+    "query": "关于头孢类抗生素：搜索最新政策、查看库存、调阅内部质量控制文件",
+    "labels": ["web_search", "db_query", "kb_search"]
+  }
+]
