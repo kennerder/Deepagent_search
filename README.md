@@ -44,6 +44,25 @@ pip install -r requirements.txt
 
 Setup steps — databases, knowledge-base indexing, evaluation runs — are documented in the Chinese section below.
 
+## Tests
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest tests/ -q
+```
+
+`tests/test_security.py` covers upload path sanitization, the optional API token and the read-only SQL guard. It stubs the heavy runtime dependencies, so no MySQL, Qdrant or LLM endpoint is needed.
+
+## Security notes
+
+Three optional environment variables control the service's hardening; unset, the service keeps its original local-development behaviour.
+
+| Variable | Effect |
+|---|---|
+| `API_TOKEN` | When set, REST calls need an `X-API-Token` header and WebSockets need `?token=` |
+| `CORS_ORIGINS` | Comma-separated allowlist. Default `*`, which disables credentialed CORS |
+| `ALLOW_WRITE_SQL` | Default `false`: the database tool only accepts `SELECT` / `WITH` / `SHOW` / `DESC` / `EXPLAIN` |
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
