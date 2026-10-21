@@ -1,10 +1,12 @@
+import os
+import re
 import sys
 import uuid
 import asyncio
 import uvicorn
 from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -23,6 +25,19 @@ from api.monitor import monitor, manager
 
 app = FastAPI(title="DeepAgents API")
 
+# 会话 ID 会参与目录路径拼接，只允许安全字符
+SESSION_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+# 可选鉴权：设置 API_TOKEN 后，REST 需带 X-API-Token 头，WebSocket 需带 ?token=
+API_TOKEN = os.getenv("API_TOKEN", "").strip()
+
+if API_TOKEN:
+    @app.middleware("http")
+    async def require_api_token(request, call_next):
+        if request.url.path.startswith("/api/") and request.headers.get("x-api-token") != API_TOKEN:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return await call_next(request)
+
 # 挂载输出目录，以便前端访问生成的静态文件
 output_dir = project_root / "output"
 output_dir.mkdir(exist_ok=True)
@@ -31,11 +46,13 @@ output_dir.mkdir(exist_ok=True)
 updated_dir = project_root / "updated"
 updated_dir.mkdir(exist_ok=True)
 
-# 配置 CORS
+# 配置 CORS：默认放开来源但不允许携带凭证；
+# 需要跨域带 Cookie 时用 CORS_ORIGINS 显式列出来源（逗号分隔）
+_cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials="*" not in _cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -81,15 +98,26 @@ async def upload_files(files: List[UploadFile] = File(...), thread_id: str = For
         files (List[UploadFile]): 文件对象列表。
         thread_id (str): 关联的任务会话 ID。
     """
-    target_dir = updated_dir / f"session_{thread_id}"
+    # thread_id 与文件名都来自请求体，必须清洗后再拼路径，否则 ../ 可以逃出上传目录
+    if not SESSION_ID_RE.fullmatch(thread_id or ""):
+        return JSONResponse({"error": "无效的 thread_id"}, status_code=400)
+
+    target_dir = (updated_dir / f"session_{thread_id}").resolve()
+    if not target_dir.is_relative_to(updated_dir.resolve()):
+        return JSONResponse({"error": "拒绝访问: 目录越界"}, status_code=400)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     saved_files = []
     for file in files:
-        file_path = target_dir / file.filename
+        safe_name = Path(file.filename or "").name  # 只保留文件名，丢掉路径成分
+        if not safe_name or safe_name in {".", ".."}:
+            continue
+        file_path = (target_dir / safe_name).resolve()
+        if not file_path.is_relative_to(target_dir):
+            continue
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        saved_files.append(file.filename)
+        saved_files.append(safe_name)
 
     return {"status": "uploaded", "files": saved_files}
 
@@ -187,6 +215,10 @@ async def websocket_endpoint(websocket: WebSocket, thread_id: str):
         websocket (WebSocket): WebSocket 连接实例。
         thread_id (str): 当前会话的唯一标识。
     """
+    if API_TOKEN and websocket.query_params.get("token") != API_TOKEN:
+        await websocket.close(code=1008)
+        return
+
     await manager.connect(websocket, thread_id)
 
     try:

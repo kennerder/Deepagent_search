@@ -7,6 +7,19 @@ from langchain_core.tools import tool
 
 load_dotenv()
 
+# 只读语句白名单：LLM 生成的 SQL 默认只能查询，禁止 DDL/DML
+READ_ONLY_PREFIXES = ("select", "with", "show", "desc", "describe", "explain")
+
+
+def is_read_only(query: str) -> bool:
+    """仅放行只读语句；本地调试需要写操作时设置 ALLOW_WRITE_SQL=true。"""
+    if os.getenv("ALLOW_WRITE_SQL", "false").strip().lower() == "true":
+        return True
+    stripped = query.strip().lstrip("(").strip()
+    if not stripped or not stripped.lower().startswith(READ_ONLY_PREFIXES):
+        return False
+    return all(not part.strip() for part in query.strip().split(";")[1:])
+
 
 # 加载配置文件方便后续使用
 def get_db_config():
@@ -80,10 +93,13 @@ def get_table_data(
 
         with connect(**config) as conn:
             with conn.cursor() as cursor:
-                # 基础安全清洗：移除表名中的危险字符
-                safe_table_name = table_name.replace("`", "").replace(";", "").split()[0]
+                # 表名拼进 SQL 前必须比对 SHOW TABLES 白名单，字符串过滤挡不住注入
+                cursor.execute("SHOW TABLES")
+                known_tables = {row[0] for row in cursor.fetchall()}
+                if table_name not in known_tables:
+                    return f"错误：数据表 {table_name} 不存在"
 
-                cursor.execute(f"SELECT * FROM {safe_table_name} LIMIT 100")
+                cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 100")
 
                 if cursor.description is None:
                     return f"数据表 {table_name} 为空或表名无效。"
@@ -106,6 +122,8 @@ def execute_sql_query(
 ) -> Annotated[str, "查询结果或成功消息"]:
     """在 MySQL 数据库上执行自定义 SQL 查询。用于复杂查询、联接或特定数据检索。"""
     monitor.report_tool("数据库查询工具")
+    if not is_read_only(query):
+        return "错误：仅允许执行只读查询（SELECT / WITH / SHOW / DESC / EXPLAIN）"
     config = get_db_config()
     try:
         if not all([config.get("user"), config.get("password"), config.get("database")]):
