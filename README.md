@@ -1,4 +1,56 @@
+<!-- English overview. Chinese documentation continues below. -->
+
 # DeepAgents Search
+
+> A "1+N" multi-agent deep-research system for enterprise information tasks — one orchestrator agent, three specialist sub-agents, and a fine-tuned intent router deciding which of them to call.
+
+Python 3.10+ · DeepAgents · LangGraph · FastAPI · Vue 3 · MIT
+
+## Why this exists
+
+Agent demos usually stop at "chat with tools". Enterprise research questions need three different sources of truth at once — the open web, the company database, and a private document corpus — and the routing, retrieval and validation code around those sources is where the actual engineering sits. This repository publishes that work end to end, including the evaluation harnesses used to check it.
+
+## Architecture
+
+```
+user query → FastAPI → orchestrator agent (DeepAgents)
+                          ├─ conversation memory (multi-turn context + coreference resolution)
+                          ├─ BERT intent router → sub-agent dispatch + query decomposition
+                          ├─ web search agent     (Tavily, multi-angle parallel search)
+                          ├─ database agent       (LangGraph 12-node Text-to-SQL pipeline)
+                          ├─ knowledge-base agent (local RAG: HyDE + Qdrant + reranker)
+                          └─ WebSocket monitor    (streams routing, tool calls, results)
+```
+
+## What is inside
+
+| Layer | Implementation |
+|---|---|
+| Orchestration | DeepAgents + LangGraph; 1 main agent + 3 sub-agents |
+| Intent routing | Fine-tuned BERT multi-label classifier, three-tier threshold policy (`bert` / `fallback` / `none`) |
+| Web search | Tavily Search API, query rewriting, parallel execution, URL-level deduplication |
+| Text-to-SQL | 12-node state graph: keyword recall → table/metric filtering → SQL generation → `EXPLAIN` validation → LLM correction loop |
+| Private RAG | HyDE query expansion, Qdrant dense+sparse retrieval (BGE-M3), BGE cross-encoder reranker, score-gap dynamic Top-K |
+| Evaluation | Router accuracy, RAGAS (faithfulness / answer relevancy / context precision / recall), BIRD-style SQL execution accuracy |
+| Serving | FastAPI REST + WebSocket, Vue 3 + Vite UI, session isolation via `ContextVar` |
+
+## Requirements
+
+Python 3.10+, MySQL 8.0+, Qdrant (port 6333), Elasticsearch 7.x (port 9200), an OpenAI-compatible LLM endpoint and a Tavily API key.
+
+```bash
+pip install -r requirements.txt
+```
+
+Setup steps — databases, knowledge-base indexing, evaluation runs — are documented in the Chinese section below.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+---
+
+## DeepAgents Search（中文文档）
 
 基于 DeepAgents 框架的多智能体深度搜索系统。1 个主 Agent 协调 3 个专家子 Agent，覆盖网络搜索、结构化数据库查询、私有知识库检索三大场景，通过 BERT 路由 + LangGraph 流水线 + WebSocket 实时监控，实现复杂查询任务的智能分发与闭环执行。
 
@@ -11,8 +63,8 @@
                        ├─ 网络搜索助手 (多角度深度搜索)
                        ├─ 数据库查询助手 (LangGraph 12 节点流水线)
                        │    └─ Qdrant 向量检索 + ES 全文检索 + MySQL 执行
-                       ├─ 知识库助手 (本地 RAG 管线)
-                       │    └─ HyDE → BGE-M3 → Qdrant → BGE Reranker
+                       ├─ 知识库助手 (双路召回 RAG)
+                       │    └─ 原始Q + HyDE → BGE-M3 → Qdrant → BGE Reranker
                        └─ 工具层: Markdown 生成 / PDF 导出 / 文件读写
 ```
 
@@ -25,59 +77,64 @@
 **路由内部流程**：
 
 ```
-用户Query
-    │
-    ▼
-┌─────────────────┐
-│  LLM 指代消解     │  ← 短查询/有历史时，补全省略的主语
-│  "那销售额呢？"    │     结合对话记忆做指代消解
-│  → "布洛芬销售额"  │
-└────────┬────────┘
-         │  完整 Query
-         ▼
-┌─────────────────┐
-│  BERT 推理       │  ← 单次 forward pass，3 个标签同时计算
-│  sigmoid 独立判断 │     [db_query: 0.87, web_search: 0.79, kb_search: 0.12]
-└────────┬────────┘
-         │  三段式判定
-         ▼
-    ┌────────┬────────┬────────┐
-    │        │        │        │
- 全部<0.35  部分0.35  任一≥0.5
-    │      ~0.5之间   │
-    ▼        ▼        ▼
- ┌──────┐ ┌──────┐ ┌──────────┐
- │ none │ │ LLM  │ │  bert    │
- │ 无关 │ │兜底  │ │  命中    │
- └──┬───┘ └──┬───┘ └────┬─────┘
-    │        │          │
-    ▼        ▼          ▼
- 告知主Agent 不给建议  命中≥2个?
- "直接回答"  LLM自己判    │
-                    ┌────┴────┐
-                    │ 是       │ 否
-                    ▼          ▼
-              ┌──────────┐  ┌──────────┐
-              │Query拆解  │  │ 直接注入  │
-              │LLM拆为子任务│  │ 路由建议  │
-              └────┬─────┘  └────┬─────┘
-                   │             │
-                   ▼             │
-              ┌──────────┐       │
-              │实体覆盖校验│       │
-              │(覆盖率≥50%)│      │
-              └────┬─────┘       │
-                   │             │
-              ┌────┴────┐        │
-              │通过  │失败│        │
-              ▼      ▼    │      │
-            注入   回退原   │      │
-           子任务  Query   │      │
-              │      │    │      │
-              └──────┴────┴──────┘
-                     │
-                     ▼
-             注入 route_hint 到主 Agent prompt
+                          用户Query
+                              │
+                              ▼
+                   ┌──────────────────────┐
+                   │  LLM 指代消解          │
+                   │  "那销售额呢？"         │
+                   │  → "布洛芬的销售额"     │
+                   │  (短查询/有历史时触发)   │
+                   └──────────┬───────────┘
+                              │  完整 Query
+                              ▼
+                   ┌──────────────────────┐
+                   │  BERT 推理            │
+                   │  单次 forward pass    │
+                   │  sigmoid 独立判断      │
+                   │  [db:0.87 web:0.79   │
+                   │   kb:0.12]           │
+                   └──────────┬───────────┘
+                              │  三段式判定
+                              ▼
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+    全部 < 0.35          0.35 ~ 0.5            任一 ≥ 0.5
+        │                     │                     │
+        ▼                     ▼                     ▼
+   ┌──────────┐        ┌──────────┐        ┌──────────────┐
+   │   none   │        │   LLM    │        │     bert     │
+   │  无关查询 │        │  自主判断 │        │   命中路由    │
+   └────┬─────┘        └────┬─────┘        └──────┬───────┘
+        │                   │                     │
+        ▼                   ▼                     ▼
+   告知主 Agent          不给建议             命中 ≥ 2 个 ?
+   "无需子代理"         LLM 自己判                 │
+   直接回答                                ┌──────┴──────┐
+                                           │ 是          │ 否
+                                           ▼             ▼
+                                  ┌──────────────┐ ┌──────────────┐
+                                  │  Query 拆解   │ │  直接注入     │
+                                  │  LLM 拆为子任务│ │  路由建议     │
+                                  └──────┬───────┘ └──────┬───────┘
+                                         │                │
+                                         ▼                │
+                                  ┌──────────────┐        │
+                                  │  实体覆盖校验  │        │
+                                  │ (jieba TF-IDF)│        │
+                                  │  覆盖率 ≥ 50%  │        │
+                                  └──────┬───────┘        │
+                                         │                │
+                                    ┌────┴────┐           │
+                                    │通过  │失败│           │
+                                    ▼      ▼    │         │
+                                  注入   回退原  │         │
+                                 子任务  Query  │         │
+                                    │      │    │         │
+                                    └──────┴────┴─────────┘
+                                           │
+                                           ▼
+                               注入 route_hint 到主 Agent prompt
 ```
 
 **关键设计点**：
@@ -149,20 +206,42 @@
 本地私有知识库检索管线，不依赖任何外部 RAG 服务，数据不出域：
 
 ```
-用户问题 → HyDE 假设文档生成 → BGE-M3 向量化
-→ Qdrant 子块检索 (Top20) → 父块追溯
-→ BGE Reranker v2-m3 Cross-Encoder 精排 → 返回 TopK
+用户问题
+    │
+    ├──────────────┐
+    ▼              ▼
+原始 Query     HyDE 假设文档
+直接向量化      (LLM 生成 → 向量化)
+    │              │
+    ▼              ▼
+Qdrant 检索    Qdrant 检索
+ (路1:保底)     (路2:增强)
+    │              │
+    └──────┬───────┘
+           ▼
+       合并去重 (按 ID)
+           │
+           ▼
+   BGE Reranker v2-m3
+   Cross-Encoder 精排
+   (始终用原始 Query)
+           │
+           ▼
+    动态 TopK 截断 → 返回
 ```
+
+**双路召回设计**: HyDE 假设文档可能生成错误内容。单路方案中，HyDE 偏了直接污染向量→召回全废。双路方案中，原始 Query 独立走一路保底召回，与 HyDE 路合并后统一 Rerank。HyDE 错了不影响保底结果，HyDE 对了则两路互补提升覆盖面。
 
 各环节技术选型：
 
 | 环节 | 技术 | 说明 |
 |---|---|---|
 | 文档切分 | 父子文档关联切分 | Markdown 标题优先，子块 512 字符 / 父块 2048 字符 |
-| 查询增强 | HyDE (Hypothetical Document Embedding) | LLM 生成假设答案，与原始问题拼接，增强检索语义 |
+| 查询增强 | HyDE + 双路召回 | LLM 生成假设答案作为第二路检索，与原始 Query 并行召回后合并 |
 | 向量化 | BGE-M3 (1024 维) | FlagEmbedding 原生加载，支持稠密+稀疏双路输出 |
 | 向量存储 | Qdrant 父子双集合 | 子块集合用于精准匹配，父块集合返回完整上下文 |
-| 重排序 | BGE Reranker v2-m3 | Cross-Encoder 精排，动态 TopK（断崖检测：相对差 >25% 或绝对差 >0.5 时截断） |
+| 重排序 | BGE Reranker v2-m3 | Cross-Encoder 精排，始终用原始 Query 评分（不受 HyDE 影响） |
+| 动态 TopK | 断崖检测 | 相对差 >25% 或绝对差 >0.5 时截断 |
 | 去重 | MD5 文件指纹 | 增量构建，仅处理新增/变更文件 |
 
 ### 6. 前端

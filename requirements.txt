@@ -1,0 +1,51 @@
+# DeepAgents Search — Python dependencies
+# Install:  pip install -r requirements.txt
+# Verify the set on a clean env afterwards:  pip freeze > requirements.lock.txt
+# (pin exact versions in the lock file rather than guessing here)
+
+# --- Agent orchestration ---
+deepagents
+langgraph
+langchain
+langchain-core
+langchain-community
+langchain-text-splitters
+
+# --- API service ---
+fastapi
+uvicorn[standard]        # WebSocket 需要 standard extras（或单独安装 websockets）
+python-multipart         # FastAPI 的 UploadFile / Form 必需，缺失时 /api/upload 会直接 500
+pydantic
+python-dotenv
+
+# --- Database ---
+sqlalchemy
+asyncmy                  # sql_agent 的异步引擎：mysql+asyncmy
+mysql-connector-python   # tools/mysql_tools.py 用的同步连接（README 安装命令里漏了这一项）
+
+# --- Vector store & full-text search ---
+qdrant-client
+elasticsearch
+
+# --- Embedding / rerank (CPU 可跑，但体积较大) ---
+torch
+transformers
+FlagEmbedding
+sentence-transformers
+numpy
+jieba
+
+# --- Web search ---
+tavily-python            # tools/tavily_tools.py（README 安装命令里漏了这一项）
+
+# --- Document handling ---
+pypdf
+python-docx
+
+# --- Config ---
+pyyaml
+omegaconf
+
+# --- Optional: only if you enable the RAGFlow backend in tools/ragflow_tools.py ---
+# requests
+# ragflow-sdk
